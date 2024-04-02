@@ -1,0 +1,4 @@
+baseURL = 'https://ivarref.github.io/'
+languageCode = 'en-us'
+title = 'Janei janei'
+theme = 'hugo-simple'
