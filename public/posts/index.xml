@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Janei janei</title>
+    <link>https://ivarref.github.io/posts/</link>
+    <description>Recent content on Janei janei</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sat, 30 Mar 2024 11:46:36 +0200</lastBuildDate>
+    <atom:link href="https://ivarref.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Datomic&#39;s handling of network failures</title>
+      <link>https://ivarref.github.io/posts/network-failures/</link>
+      <pubDate>Sat, 30 Mar 2024 11:46:36 +0200</pubDate>
+      <guid>https://ivarref.github.io/posts/network-failures/</guid>
+      <description>Introduction This post will examine how the Datomic on-premise peer library handles and responds to network failures. The version tested is 1.0.7075, released 2023-12-18.
+Datomic uses the Apache Tomcat JDBC Connection Pool for SQL connection management. PostgreSQL is used as the underlying storage in this test.
+More specifically we will be testing:
+com.datomic/peer 1.0.7075 ; Released 2023-12-18 org.apache.tomcat/tomcat-jdbc 7.0.109 (bundled by datomic-pro) org.postgresql/postgresql 42.5.1 OpenJDK 64-Bit Server VM Temurin-22+36 (build 22+36, mixed mode, sharing) We will be using nftables to simulate network errors.</description>
+      <content:encoded><![CDATA[<h2 id="introduction">Introduction</h2>
+<p>This post will examine how the <a href="https://www.datomic.com/on-prem.html">Datomic on-premise peer library</a>
+handles and responds to network failures. The version tested is <code>1.0.7075</code>, released <code>2023-12-18</code>.</p>
+<p>Datomic uses the <a href="https://tomcat.apache.org/tomcat-7.0-doc/jdbc-pool.html">Apache Tomcat JDBC Connection Pool</a> for SQL connection management.
+PostgreSQL is used as the underlying storage in this test.</p>
+<p>More specifically we will be testing:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>com.datomic/peer 1.0.7075 ; Released 2023-12-18
+org.apache.tomcat/tomcat-jdbc 7.0.109 (bundled by datomic-pro)
+org.postgresql/postgresql 42.5.1
+OpenJDK 64-Bit Server VM Temurin-22+36 (build 22+36, mixed mode, sharing)</code></pre>
+<p>We will be using <a href="http://nftables.org/projects/nftables/index.html">nftables</a> to simulate network errors.</p>
+<h2 id="setup">Setup</h2>
+<p>Read this section if you want to reproduce the output of the commands.</p>
+<p>All commands require that <code>./db-up.sh</code> is running.
+Running <code>./db-up.sh</code> will start a Datomic and PostgreSQL instance locally.
+The following environment variables needs to be set:</p>
+<ul>
+<li><code>POSTGRES_PASSWORD</code>: Password to be used for PostgreSQL.</li>
+</ul>
+<p>You will also want to:</p>
+<ul>
+<li>add <code>/usr/bin/nft</code> to sudoers for your user</li>
+<li>or be prepared to enter your root password.</li>
+</ul>
+<p>Running this code requires Linux and Java 22 or later as it uses <a href="https://openjdk.org/jeps/434">JEP 434: Foreign Function &amp; Memory API</a>.</p>
+<h2 id="case-1-tcp-retry-saves-the-day">Case 1: TCP retry saves the day</h2>
+<p>Running <code>./tcp-retry.sh</code> you will see:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>1 00:00:03 [INFO] /proc/sys/net/ipv4/tcp_retries2 is 15
+2 00:00:03 [INFO] Clear all packet filters ...
+3 00:00:03 [INFO] Executing sudo nft -f accept.txt ...
+4 00:00:03 [INFO] Executing sudo nft -f accept.txt ... OK!
+5 00:00:06 [INFO] Starting query on blocked connection ...
+6 00:00:06 [DEBUG] {:event :kv-cluster/get-val, :val-key &#34;6602cd9e-bb0b-4227-98f7-d7034c4de30b&#34;, :phase :begin, :pid 143279, :tid 33}
+7 00:00:06 [INFO] Dropping TCP packets for 46364:5432 fd 166
+8 00:00:06 [INFO] Executing sudo nft -f drop.txt ...
+9 00:00:06 [INFO] Executing sudo nft -f drop.txt ... OK!</code></pre>
+<p>At line 5 we have initialized our system and are
+about to perform a query using <code>datomic.api/q</code>.
+The query will trigger a database/storage read on a connection that will be
+blocked.</p>
+<p>From line 7 we can see that we&rsquo;re starting to drop packets
+destined for PostgreSQL, which is running at port 5432.
+The format used in the logs is <code>local-port:remote-port</code>.</p>
+<p>We&rsquo;re starting to drop packets just before
+<code>org.apache.tomcat.jdbc.pool.ConnectionPool/getConnection</code>
+returns a connection, and thus also <em>before</em> any packet is sent.
+We will see later why the emphasis on before is made.</p>
+<p>After this we simply wait and watch for <code>TCP_INFO.tcpi_backoff</code> socket changes:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>10 00:00:06 [INFO] client fd 166 46364:5432 initial state is {open? true,
+ tcpi_rto 203333,
+ tcpi_state ESTABLISHED ...}
+11 00:00:06 [INFO] client fd 166 46364:5432 tcpi_backoff 0 =&gt; 1 (In 118 ms)
+12 00:00:06 [INFO] client fd 166 46364:5432 tcpi_backoff 1 =&gt; 2 (In 424 ms)
+13 00:00:07 [INFO] client fd 166 46364:5432 tcpi_backoff 2 =&gt; 3 (In 823 ms)
+14 00:00:09 [INFO] client fd 166 46364:5432 tcpi_backoff 3 =&gt; 4 (In 1654 ms)
+15 00:00:12 [INFO] client fd 166 46364:5432 tcpi_backoff 4 =&gt; 5 (In 3386 ms)
+16 00:00:19 [INFO] client fd 166 46364:5432 tcpi_backoff 5 =&gt; 6 (In 6615 ms)
+...</code></pre>
+<h3 id="kernel-and-tcp_info-struct-detour">Kernel and TCP_INFO struct detour</h3>
+<p><code>tcpi_backoff</code> is collected from <a href="https://man7.org/linux/man-pages/man2/getsockopt.2.html">getsockopt</a> using <code>TCP_INFO</code>.
+The <a href="https://man7.org/linux/man-pages/man8/ss.8.html">ss man page</a>
+gives this definition of <code>isck_backoff</code>:</p>
+<blockquote>
+<p>icsk_backoff used for exponential backoff re-transmission, the
+actual re-transmission timeout value is icsk_rto &laquo;
+icsk_backoff</p>
+</blockquote>
+<p>This field, <code>icsk_backoff</code>, is copied verbatim into <code>tcpi_backoff</code> in the <a href="https://github.com/torvalds/linux/blob/5b7c4cabbb65f5c469464da6c5f614cbd7f730f2/net/ipv4/tcp.c#L3829">kernel</a>.
+<code>&lt;&lt;</code> is bit shift left and thus an increment of the backoff field yields
+a doubling of the re-transmission timeout value.</p>
+<p>Then there is the <code>isck_rto</code> field. <code>rto</code> stands for <code>Re-transmission Time Out</code>.
+In <code>getsockopt</code> <code>isck_rto</code> is converted from <a href="https://man7.org/linux/man-pages/man7/time.7.html">jiffies</a> to microseconds into the <code>tcpi_rto</code> field.
+We can see that <code>tcpi_rto</code> is initialized at 203333 microseconds,
+i.e. just over 200 milliseconds.
+These values correspond reasonably well to the observed
+durations of each transition of <code>tcpi_backoff</code> in the log:
+it starts at ~200 milliseconds, then doubles, doubles again, etc..</p>
+<p>TL-DR: A change in <code>tcpi_backoff</code> means that the kernel has sent a packet,
+but did not yet receive any corresponding ACK, and will thus re-send the packet.</p>
+<h3 id="the-kernel-to-the-rescue">The kernel to the rescue</h3>
+<p>Back in the console we can finally we see:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>163 00:16:05 [INFO] client fd 166 46364:5432 tcpi_backoff 15 =&gt; 0 (In 122879 ms)
+164 00:16:05 [INFO] client fd 166 46364:5432 tcpi_state ESTABLISHED =&gt; CLOSE (In 959578 ms)
+165 00:16:05 [WARN] client fd 166 46364:5432 error in socket watcher. Message: getsockopt error: -1
+166 00:16:05 [INFO] client fd 166 46364:5432 watcher exiting
+167 00:16:05 [WARN] Unable to clear Warnings, connection will be closed.</code></pre>
+<p>After approximately 16 minutes the kernel gives up
+trying to re-send our packets and waiting for the corresponding
+TCP acknowledgements. The kernel then closes the connection.</p>
+<p>It&rsquo;s possible to change the number of TCP retries:
+e.g. <code>sudo bash -c 'echo 6 &gt; /proc/sys/net/ipv4/tcp_retries2'</code>.
+If you then re-run <code>./tcp-retry.sh</code> you will see
+a much shorter timeout.</p>
+<p>The default value of <code>/proc/sys/net/ipv4/tcp_retries2</code> is 15, i.e.
+an unacknowledged packet will be re-sent 15 times
+before the connection is considered broken
+and then closed by the kernel.
+From the <a href="https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt">kernel ip-sysctl documentation</a>:</p>
+<blockquote>
+<p>The default value of 15 yields a hypothetical timeout of 924.6 seconds and is a lower bound for the effective timeout.  TCP will effectively time out at the first RTO (Re-transmission Time Out) which exceeds the hypothetical timeout.</p>
+</blockquote>
+<p>In our case the timeout took ~960 seconds.</p>
+<p>After the connection is closed by the kernel,
+Datomic finally retries fetching the data:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>167 00:16:05 [WARN] Unable to clear Warnings, connection will be closed.
+168 00:16:05 [INFO] {:event :kv-cluster/retry, :StorageGetBackoffMsec 0, :attempts 0, :max-retries 9, :cause &#34;java.net.SocketException&#34;, :pid 143279, :tid 33}
+169 00:16:05 [INFO] {:MetricsReport {:lo 1, :hi 1, :sum 1, :count 1}, :StorageGetBackoffMsec {:lo 0, :hi 0, :sum 0, :count 1}, :AvailableMB 7860.0, :ObjectCacheCount 20, :event :metrics, :pid 143279, :tid 56}
+170 00:16:05 [DEBUG] {:event :metrics/report, :phase :begin, :pid 143279, :tid 56}
+171 00:16:05 [DEBUG] {:event :metrics/report, :msec 0.0276, :phase :end, :pid 143279, :tid 56}
+173 00:16:05 [DEBUG] {:event :kv-cluster/get-val, :val-key &#34;6602cd9e-bb0b-4227-98f7-d7034c4de30b&#34;, :msec 960000.0, :phase :end, :pid 143279, :tid 33}
+174 00:16:05 [DEBUG] {:event :kv-cluster/get-val, :val-key &#34;6602cd9e-23a5-4d99-bf73-b8badbe60495&#34;, :phase :begin, :pid 143279, :tid 33}
+176 00:16:05 [DEBUG] {:event :kv-cluster/get-val, :val-key &#34;6602cd9e-23a5-4d99-bf73-b8badbe60495&#34;, :msec 2.09, :phase :end, :pid 143279, :tid 33}
+177 00:16:05 [DEBUG] {:event :kv-cluster/get-val, :val-key &#34;6602cd9e-6347-4910-9d91-93501966849a&#34;, :phase :begin, :pid 143279, :tid 33}
+179 00:16:05 [DEBUG] {:event :kv-cluster/get-val, :val-key &#34;6602cd9e-6347-4910-9d91-93501966849a&#34;, :msec 1.63, :phase :end, :pid 143279, :tid 33}
+180 00:16:06 [INFO] Query on blocked connection ... Done in 00:15:59 aka 959937 milliseconds</code></pre>
+<h3 id="finding-a-needle-with-a-warning">Finding a needle with a warning?</h3>
+<p>There are a few things to note here.
+One is that there is only two warnings.</p>
+<p>One was issued by <code>org.apache.tomcat.jdbc.pool.PooledConnection</code>.
+Its message reads:
+<code>Unable to clear Warnings, connection will be closed.</code></p>
+<p>This is the by far the best indication we get
+that something went wrong.
+And this message is only included because the
+<a href="https://stackoverflow.com/questions/9117030/jul-to-slf4j-bridge">jul to slf4j bridge</a> was installed,
+otherwise this message would only have made it to stdout,
+which you may or may not be collecting in your logging
+infrastructure.</p>
+<p>The other warning is issued by <code>datomic.future</code>,
+and reads
+<code>{:event :datomic.future/unfilled, :seconds 180, :context {:line 168, :column 7, :file &quot;datomic/kv_cluster.clj&quot;}, :pid 143279, :tid 62}</code>.
+It&rsquo;s not very obvious what this means.</p>
+<p>Datomic also report that <code>:StorageGetMsec</code> had a <code>:hi[gh]</code>
+of <code>960000</code>, i.e. around 16 minutes.
+This is logged at an INFO-level, making it hard
+to spot.</p>
+<p>In summary: a network issue like this
+is rather hard to both spot and troubleshoot when using Datomic.</p>
+<h2 id="case-2-a-query-that-hangs-forever">Case 2: a query that hangs forever?</h2>
+<p>In case 1 we saw what happened when the TCP send buffer had unacknowledged data on a dropped connection:
+the kernel saved us and Datomic successfully retried the query, albeit taking ~16 minutes.</p>
+<p>What happens if the connection becomes blocked <em>after</em> the send buffer is acknowledged,
+but <em>before</em> a response is received?</p>
+<p>We will introduce an in-process TCP proxy that forwards packets to and from the database.
+This allows for dropping packets to the peer
+upon receival of data from the database.
+We&rsquo;ve seen that the initial re-transmission timeout
+is 200 ms. Waiting double this amount
+should guarantee that all previous
+packets have been ACK-ed before we start to drop packets.</p>
+<p>Let find out what happens by executing <code>./forever.sh</code>:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>1 00:00:03 [INFO] /proc/sys/net/ipv4/tcp_retries2 is 15
+2 00:00:03 [INFO] PID is: 159113
+3 00:00:03 [INFO] Java version is: 22
+4 00:00:03 [INFO] Clear all packet filters ...
+5 00:00:03 [INFO] Executing sudo nft -f accept.txt ...
+6 00:00:03 [INFO] Executing sudo nft -f accept.txt ... OK!
+7 00:00:03 [INFO] Starting spa-monkey on 127.0.0.1:54321
+8 00:00:04 [INFO] Thread group 1 proxying new incoming connection from 54321:48044 =&gt; 37362:5432
+9 00:00:04 [INFO] Thread group 2 proxying new incoming connection from 54321:48056 =&gt; 37370:5432
+10 00:00:07 [INFO] Thread group 3 proxying new incoming connection from 54321:48072 =&gt; 37380:5432
+11 00:00:08 [INFO] Thread group 4 proxying new incoming connection from 54321:48080 =&gt; 37390:5432</code></pre>
+<p>Our proxy is up and running at port 54321. This is also the port that
+we are telling Datomic to connect to. The port mapping in the logs is
+logged as <code>local-port:remote-port</code>.
+Next we start a query that will
+be blocked:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>12 00:00:09 [INFO] Starting query on blocked connection ...
+13 00:00:09 [DEBUG] {:event :kv-cluster/get-val, :val-key &#34;6602cd9e-bb0b-4227-98f7-d7034c4de30b&#34;, :phase :begin, :pid 159113, :tid 61}
+14 00:00:09 [INFO] ConnectionPool/getConnection returning socket 48080:54321
+15 00:00:09 [INFO] client fd 177 48080:54321 initial state is {open? true, tcpi_advmss 65483, tcpi_ato 40000, tcpi_backoff 0, tcpi_ca_state 0, tcpi_fackets 0, tcpi_lost 0, tcpi_options 7, tcpi_pmtu 65535, tcpi_rcv_mss 576, tcpi_rcv_rtt 1000, tcpi_rcv_space 65495, tcpi_rcv_ssthresh 65495, tcpi_reordering 3, tcpi_retrans 0, tcpi_retransmits 0, tcpi_rto 203333, tcpi_rtt 1350, tcpi_rttvar 2644, tcpi_sacked 0, tcpi_snd_cwnd 10, tcpi_snd_mss 32768, tcpi_snd_ssthresh 2147483647, tcpi_state ESTABLISHED, tcpi_total_retrans 0, tcpi_unacked 0}
+16 00:00:09 [INFO] Dropping TCP packets for 54321:48080 fd 175
+...
+20 00:00:09 [INFO] proxy fd 175 54321:48080 initial state is {open? true, tcpi_advmss 65483, tcpi_ato 40000, tcpi_backoff 0, tcpi_ca_state 0, tcpi_fackets 0, tcpi_lost 0, tcpi_options 7, tcpi_pmtu 65535, tcpi_rcv_mss 536, tcpi_rcv_rtt 0, tcpi_rcv_space 65483, tcpi_rcv_ssthresh 65483, tcpi_reordering 3, tcpi_retrans 0, tcpi_retransmits 0, tcpi_rto 220000, tcpi_rtt 18650, tcpi_rttvar 22457, tcpi_sacked 0, tcpi_snd_cwnd 10, tcpi_snd_mss 32768, tcpi_snd_ssthresh 2147483647, tcpi_state ESTABLISHED, tcpi_total_retrans 0, tcpi_unacked 0}</code></pre>
+<p>Notice here that we are starting two socket watchers, one for the SQL client, i.e. Datomic peer, and one for the proxy.
+Please also notice that we are dropping packets coming <em>from</em> the proxy to
+the client/peer.
+After this you will see the familiar tcp backoff, but this time for
+the proxy side, i.e. our fake database:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>21 00:00:09 [INFO] proxy fd 175 54321:48080 tcpi_backoff 0 =&gt; 1 (In 225 ms)
+22 00:00:10 [INFO] proxy fd 175 54321:48080 tcpi_backoff 1 =&gt; 2 (In 456 ms)
+23 00:00:11 [INFO] proxy fd 175 54321:48080 tcpi_backoff 2 =&gt; 3 (In 903 ms)
+24 00:00:13 [INFO] proxy fd 175 54321:48080 tcpi_backoff 3 =&gt; 4 (In 1975 ms)
+25 00:00:16 [INFO] proxy fd 175 54321:48080 tcpi_backoff 4 =&gt; 5 (In 3626 ms)
+...
+375 00:16:23 [INFO] proxy fd 175 54321:48080 tcpi_state ESTABLISHED =&gt; CLOSE (In 975120 ms)
+...
+377 00:16:23 [WARN] proxy fd 175 54321:48080 error in socket watcher. Message: getsockopt error: -1
+378 00:16:23 [INFO] proxy fd 175 54321:48080 watcher exiting</code></pre>
+<p>So now our TCP connection, as seen by the proxy, is dropped and closed. However
+the Datomic peer/client is perfectly happy and will keep waiting for the database:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>385 00:16:57 [INFO] client fd 177 48080:54321 no changes last PT16M50.139S
+386 00:16:59 [INFO] Waited for query result for PT16M51.729S
+...
+21733 24:00:10 [INFO] client fd 177 48080:54321 no changes last PT24H2.315S
+21734 24:00:15 [INFO] Waited for query result for PT24H8.076S</code></pre>
+<p>The peer/client is still patiently waiting after 24 hours. Only a single warning will
+be issued by Datomic, the familiar <code>datomic.future</code> as seen earlier in case 1:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>{:event :datomic.future/unfilled, :seconds 180, :context {:line 168, :column 7, :file \&#34;datomic/kv_cluster.clj\&#34;}, :pid 159113, :tid 67}</code></pre>
+<p>Datomic Metrics Reporter will not give any hints about a stuck request.</p>
+<p>The blocked query thread has a stacktrace like this:</p>
+
+
+
+
+
+
+<pre tabindex="0"><code>&#34;blocked-query-thread&#34; #40 [159205] daemon prio=5 os_prio=0 cpu=48.29ms elapsed=86652.92s tid=0x00007f541209eab0 nid=159205 waiting on condition  [0x00007f53dd657000]
+   java.lang.Thread.State: WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@22/Native Method)
+	- parking to wait for  &lt;0x000000061101c918&gt; (a java.util.concurrent.FutureTask)
+	at java.util.concurrent.locks.LockSupport.park(java.base@22/LockSupport.java:221)
+	at java.util.concurrent.FutureTask.awaitDone(java.base@22/FutureTask.java:500)
+	at java.util.concurrent.FutureTask.get(java.base@22/FutureTask.java:190)
+	at clojure.core$deref_future.invokeStatic(core.clj:2317)
+	at clojure.core$deref.invokeStatic(core.clj:2337)
+	at clojure.core$deref.invoke(core.clj:2323)
+	at clojure.core$mapv$fn__8535.invoke(core.clj:6979)
+	at clojure.lang.PersistentVector.reduce(PersistentVector.java:343)
+	at clojure.core$reduce.invokeStatic(core.clj:6885)
+	at clojure.core$mapv.invokeStatic(core.clj:6970)
+	at clojure.core$mapv.invoke(core.clj:6970)
+	at datomic.common$pooled_mapv.invokeStatic(common.clj:706)
+	at datomic.common$pooled_mapv.invoke(common.clj:701)
+	at datomic.datalog$qmapv.invokeStatic(datalog.clj:52)
+	at datomic.datalog$qmapv.invoke(datalog.clj:47)
+...
+	at datomic.measure.query_stats$with_phase_stats.invokeStatic(query_stats.clj:61)
+	at datomic.measure.query_stats$with_phase_stats.invoke(query_stats.clj:48)
+	at datomic.datalog$qsqr.invokeStatic(datalog.clj:1595)
+	at datomic.datalog$qsqr.invoke(datalog.clj:1534)
+	at datomic.datalog$qsqr.invokeStatic(datalog.clj:1552)
+	at datomic.datalog$qsqr.invoke(datalog.clj:1534)
+	at datomic.query$q_STAR_.invokeStatic(query.clj:757)
+	at datomic.query$q_STAR_.invoke(query.clj:744)
+	at datomic.query$q.invokeStatic(query.clj:796)
+	at datomic.query$q.invoke(query.clj:793)
+	at datomic.api$q.invokeStatic(api.clj:44)
+	at datomic.api$q.doInvoke(api.clj:42)
+	at clojure.lang.RestFn.invoke(RestFn.java:423)
+	at com.github.ivarref.forever$forever$fn__7642$fn__7643.invoke(forever.clj:109)
+...</code></pre>
+<p>The query will ostensibly hang forever, with
+a single and somewhat obscure warning.
+There is however nothing in particular stopping Datomic from doing a better job at
+reporting this as an issue.</p>
+<h1 id="a-postgresql-specific-quick-fix">A PostgreSQL specific quick fix</h1>
+<p>It is possible to instruct the PostgreSQL driver to time out on reads.
+This is done by specifying <code>socketTimeout=&lt;value_in_seconds&gt;</code>
+in the connection string. Quoting from the <a href="https://jdbc.postgresql.org/documentation/publicapi/org/postgresql/PGProperty.html#SOCKET_TIMEOUT">PGProperty</a> documentation:</p>
+<blockquote>
+<p>The timeout value used for socket read operations. If reading from the server takes longer than this value, the connection is closed. This can be used as both a brute force global query timeout and a method of detecting network problems. The timeout is specified in seconds and a value of zero means that it is disabled.</p>
+</blockquote>
+<p>It&rsquo;s possible to re-run the tests with <code>env CONN_EXTRA=&quot;&amp;socketTimeout=10&quot;</code>
+to see how this setting affects the total time used:</p>
+<ul>
+<li>Case 1: from 16 minutes to ~10 seconds.</li>
+<li>Case 2: from infinity to — you may have guessed it — ~10 seconds.</li>
+</ul>
+<p>Depending on your DB setup you may go even lower than 10 seconds.</p>
+<p>At this point I think it&rsquo;s safe to conclude that the new behaviour
+with <code>socketTimeout=10</code> is much better than the original, default behaviour,
+with very little risk added.</p>
+<h1 id="conclusion">Conclusion</h1>
+<p>Parts of the retry logic for Datomic up to and including <code>1.0.7075</code> is broken.
+Network problems are hard to spot, and are not well handled, nor reported, by Datomic.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die/">When TCP sockets refuse to die</a></li>
+<li><a href="https://github.com/brettwooldridge/HikariCP/wiki/Rapid-Recovery">HikariCP Rapid Recovery</a></li>
+</ul>
+]]></content:encoded>
+    </item>
+  </channel>
+</rss>
