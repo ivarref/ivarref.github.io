@@ -1,7 +1,7 @@
 baseURL = 'https://ivarref.github.io/'
 languageCode = 'en-us'
 title = 'Coding corner'
-theme = 'hugo-simple'
+theme = 'papermod'
 
 # Generate a nice robots.txt for SEO
 enableRobotsTXT = true

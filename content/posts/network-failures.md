@@ -4,16 +4,22 @@ date: 2024-05-19T11:46:36+02:00
 ---
 
 [//]: # ([//]: # tydelige subjekter)
+
 [//]: # ([//]: # unngå passiv: meir tydelig kven som gjer kva)
 
 ## Introduction
-This post will examine how the [Datomic on-premise peer library](https://www.datomic.com/on-prem.html)
+
+This post will examine how
+the [Datomic on-premise peer library](https://www.datomic.com/on-prem.html)
 handles and responds to network failures. The version tested is `1.0.7075`, released `2023-12-18`.
 
-Datomic uses the [Apache Tomcat JDBC Connection Pool](https://tomcat.apache.org/tomcat-7.0-doc/jdbc-pool.html) for SQL connection management.
+Datomic uses
+the [Apache Tomcat JDBC Connection Pool](https://tomcat.apache.org/tomcat-7.0-doc/jdbc-pool.html)
+for SQL connection management.
 PostgreSQL is used as the underlying storage in this test.
 
 More specifically we will be testing:
+
 ```
 com.datomic/peer 1.0.7075 ; Released 2023-12-18
 org.apache.tomcat/tomcat-jdbc 7.0.109 (bundled by datomic-pro)
@@ -22,19 +28,30 @@ OpenJDK 64-Bit Server VM Temurin-22+36 (build 22+36, mixed mode, sharing)
 ```
 
 [//]: # (export DATOMIC_VERSION=1.0.7075)
+
 [//]: # (wget https://datomic-pro-downloads.s3.amazonaws.com/${DATOMIC_VERSION}/datomic-pro-${DATOMIC_VERSION}.zip -O datomic-pro.zip)
+
 [//]: # (unzip -l datomic-pro.zip | grep postg)
+
 [//]: # (unzip -l datomic-pro.zip | grep tomcat)
 
-We will be using [nftables](http://nftables.org/projects/nftables/index.html) to simulate network errors.
+We will be using [nftables](http://nftables.org/projects/nftables/index.html) to simulate network
+errors.
 
 ## Context
 
-In 2021 we switched from an on premise solution to the cloud, more specifically Azure Container Instances. From time to time we would experience network issues: connections were dropped en masse.
+In 2021 we switched from an on premise solution to the cloud, more specifically Azure Container
+Instances. From time to time we would experience network issues: connections were dropped en masse.
 
-At the time it was not obvious that the network was the problem. We had not experienced such problems on premise. For a long time I suspected conflicts between aleph and Datomic, both of which relied on different versions of netty. We also had a Datomic query that had recently started to OOM _sometimes_. aleph/dirigiste had known [OOM problems](https://github.com/clj-commons/aleph/issues/461). Dirigiste also [swallowed exceptions](https://github.com/clj-commons/dirigiste/issues/12).
+At the time it was not obvious that the network was the problem. We had not experienced such
+problems on premise. For a long time I suspected conflicts between aleph and Datomic, both of which
+relied on different versions of netty. We also had a Datomic query that had recently started to OOM
+_sometimes_. aleph/dirigiste had
+known [OOM problems](https://github.com/clj-commons/aleph/issues/461). Dirigiste
+also [swallowed exceptions](https://github.com/clj-commons/dirigiste/issues/12).
 
-We saw requests freeze and then suddenly complete after ~16 minutes — in batch. It was chaotic. And it was all network issues, with OOM as an extra ingredient. Hindsight is 20/20 as they say.
+We saw requests freeze and then suddenly complete after ~16 minutes — in batch. It was chaotic. And
+it was all network issues, with OOM as an extra ingredient. Hindsight is 20/20 as they say.
 
 ## Setup
 
@@ -47,7 +64,8 @@ A single environment variable must be set:
 
 * `POSTGRES_PASSWORD`: Password to be used for PostgreSQL.
 
-One of the following must be done: 
+One of the following must be done:
+
 * add `/usr/bin/nft` to sudoers for your user
 * enter your root password when prompted.
 
@@ -73,7 +91,7 @@ Running `./tcp-retry.sh` you will see:
 ```
 
 At line 5 we have initialized our system and are
-about to perform a query using `datomic.api/q`. 
+about to perform a query using `datomic.api/q`.
 The query will trigger a database/storage read.
 The underlying connection will be
 blocked.
@@ -91,6 +109,7 @@ We will see later why the emphasis on before is made.
 [//]: # (explain emphasis on before...)
 
 After this we wait and watch for `TCP_INFO.tcpi_backoff` socket changes:
+
 ```
 10 00:00:06 [INFO] client fd 166 46364:5432 initial state is {open? true,
  tcpi_rto 203333,
@@ -105,7 +124,9 @@ After this we wait and watch for `TCP_INFO.tcpi_backoff` socket changes:
 ```
 
 ### Kernel and TCP_INFO struct detour
-`tcpi_backoff` is collected from [getsockopt](https://man7.org/linux/man-pages/man2/getsockopt.2.html) using `TCP_INFO`.
+
+`tcpi_backoff` is collected
+from [getsockopt](https://man7.org/linux/man-pages/man2/getsockopt.2.html) using `TCP_INFO`.
 The [ss man page](https://man7.org/linux/man-pages/man8/ss.8.html)
 gives this definition of `isck_backoff`:
 
@@ -113,12 +134,15 @@ gives this definition of `isck_backoff`:
 actual re-transmission timeout value is icsk_rto <<
 icsk_backoff
 
-`icsk_backoff` is copied verbatim into `tcpi_backoff` in the [kernel](https://github.com/torvalds/linux/blob/5b7c4cabbb65f5c469464da6c5f614cbd7f730f2/net/ipv4/tcp.c#L3829).
+`icsk_backoff` is copied verbatim into `tcpi_backoff` in
+the [kernel](https://github.com/torvalds/linux/blob/5b7c4cabbb65f5c469464da6c5f614cbd7f730f2/net/ipv4/tcp.c#L3829).
 `<<` is bit shift left and thus an increment of the backoff field yields
 a doubling of the re-transmission timeout value.
 
 Then there is the `isck_rto` field. `rto` stands for `Re-transmission Time Out`.
-In `getsockopt` `isck_rto` is converted from [jiffies](https://man7.org/linux/man-pages/man7/time.7.html) to microseconds into the `tcpi_rto` field.
+In `getsockopt` `isck_rto` is converted
+from [jiffies](https://man7.org/linux/man-pages/man7/time.7.html) to microseconds into the
+`tcpi_rto` field.
 We can see that `tcpi_rto` is initialized at 203333 microseconds,
 i.e. just over 200 milliseconds.
 These values correspond reasonably well to the observed
@@ -153,9 +177,12 @@ The default value of `/proc/sys/net/ipv4/tcp_retries2` is 15, i.e.
 an unacknowledged packet will be re-sent 15 times
 before the connection is considered broken
 and then closed by the kernel.
-From the [kernel ip-sysctl documentation](https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt):
+From
+the [kernel ip-sysctl documentation](https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt):
 
-> The default value of 15 yields a hypothetical timeout of 924.6 seconds and is a lower bound for the effective timeout.  TCP will effectively time out at the first RTO (Re-transmission Time Out) which exceeds the hypothetical timeout.
+> The default value of 15 yields a hypothetical timeout of 924.6 seconds and is a lower bound for
+the effective timeout. TCP will effectively time out at the first RTO (Re-transmission Time Out)
+which exceeds the hypothetical timeout.
 
 In our case the timeout took ~960 seconds.
 
@@ -175,6 +202,7 @@ Datomic finally retries fetching the data:
 179 00:16:05 [DEBUG] {:event :kv-cluster/get-val, :val-key "6602cd9e-6347-4910-9d91-93501966849a", :msec 1.63, :phase :end, :pid 143279, :tid 33}
 180 00:16:06 [INFO] Query on blocked connection ... Done in 00:15:59 aka 959937 milliseconds
 ```
+
 ### Finding a needle with a warning?
 
 There are a few things to note here.
@@ -187,7 +215,8 @@ Its message reads:
 This is by far the best indication we get
 that something went wrong.
 And this message is only included because the
-[jul to slf4j bridge](https://stackoverflow.com/questions/9117030/jul-to-slf4j-bridge) was installed,
+[jul to slf4j bridge](https://stackoverflow.com/questions/9117030/jul-to-slf4j-bridge) was
+installed,
 otherwise this message would only have made it to stdout,
 which you may or may not be collecting in your logging
 infrastructure.
@@ -198,7 +227,7 @@ and reads
 It's not very obvious what this means.
 
 Datomic also report that `:StorageGetMsec` had a `:hi[gh]`
-of `960000`, i.e. around 16 minutes. 
+of `960000`, i.e. around 16 minutes.
 This is logged at an INFO-level, making it hard
 to spot.
 
@@ -207,7 +236,8 @@ is rather hard to both spot and troubleshoot when using Datomic.
 
 ## Case 2: a query that hangs forever?
 
-In case 1 we saw what happened when the TCP send buffer had unacknowledged data on a dropped connection: 
+In case 1 we saw what happened when the TCP send buffer had unacknowledged data on a dropped
+connection:
 the kernel saved us and Datomic successfully retried the query, albeit taking ~16 minutes.
 
 What happens if the connection becomes blocked _after_ the send buffer is acknowledged,
@@ -253,7 +283,8 @@ be blocked:
 20 00:00:09 [INFO] proxy fd 175 54321:48080 initial state is {open? true, tcpi_advmss 65483, tcpi_ato 40000, tcpi_backoff 0, tcpi_ca_state 0, tcpi_fackets 0, tcpi_lost 0, tcpi_options 7, tcpi_pmtu 65535, tcpi_rcv_mss 536, tcpi_rcv_rtt 0, tcpi_rcv_space 65483, tcpi_rcv_ssthresh 65483, tcpi_reordering 3, tcpi_retrans 0, tcpi_retransmits 0, tcpi_rto 220000, tcpi_rtt 18650, tcpi_rttvar 22457, tcpi_sacked 0, tcpi_snd_cwnd 10, tcpi_snd_mss 32768, tcpi_snd_ssthresh 2147483647, tcpi_state ESTABLISHED, tcpi_total_retrans 0, tcpi_unacked 0}
 ```
 
-Notice here that we are starting two socket watchers, one for the SQL client, i.e. Datomic peer, and one for the proxy.
+Notice here that we are starting two socket watchers, one for the SQL client, i.e. Datomic peer, and
+one for the proxy.
 Please also notice that we are dropping packets coming _from_ the proxy to
 the client/peer.
 After this you will see the familiar tcp backoff, but this time for
@@ -274,6 +305,7 @@ the proxy side, i.e. our fake database:
 
 So now our TCP connection, as seen by the proxy, is dropped and closed. However
 the Datomic peer/client is perfectly happy and will keep waiting for the database:
+
 ```
 385 00:16:57 [INFO] client fd 177 48080:54321 no changes last PT16M50.139S
 386 00:16:59 [INFO] Waited for query result for PT16M51.729S
@@ -294,6 +326,7 @@ be issued by Datomic, the familiar `datomic.future` as seen earlier in case 1:
 Datomic Metrics Reporter will not give any hints about a stuck request.
 
 The blocked query thread has a stacktrace like this:
+
 ```
 "blocked-query-thread" #40 [159205] daemon prio=5 os_prio=0 cpu=48.29ms elapsed=86652.92s tid=0x00007f541209eab0 nid=159205 waiting on condition  [0x00007f53dd657000]
    java.lang.Thread.State: WAITING (parking)
@@ -341,9 +374,14 @@ reporting this as an issue.
 
 It is possible to instruct the PostgreSQL driver to time out on reads.
 This is done by specifying `socketTimeout=<value_in_seconds>`
-in the connection string. Quoting from the [PGProperty](https://jdbc.postgresql.org/documentation/publicapi/org/postgresql/PGProperty.html#SOCKET_TIMEOUT) documentation:
+in the connection string. Quoting from
+the [PGProperty](https://jdbc.postgresql.org/documentation/publicapi/org/postgresql/PGProperty.html#SOCKET_TIMEOUT)
+documentation:
 
-> The timeout value used for socket read operations. If reading from the server takes longer than this value, the connection is closed. This can be used as both a brute force global query timeout and a method of detecting network problems. The timeout is specified in seconds and a value of zero means that it is disabled.
+> The timeout value used for socket read operations. If reading from the server takes longer than
+this value, the connection is closed. This can be used as both a brute force global query timeout
+and a method of detecting network problems. The timeout is specified in seconds and a value of zero
+means that it is disabled.
 
 It's possible to re-run the tests with `env CONN_EXTRA="&socketTimeout=10"`
 to see how this setting affects the total time used:
@@ -360,32 +398,50 @@ with very little risk added.
 # Conclusion
 
 Parts of the retry logic for Datomic up to and including `1.0.7075` is broken.
-Network problems are hard to spot, and are not well handled, nor reported, by Datomic. 
+Network problems are hard to spot, and are not well handled, nor reported, by Datomic.
 
 ## Response from Datomic
 
-I've informed Datomic support about my findings and shared a draft version of this post. The response thus far is that the findings here does not constitute an error on Datomic's part. Quote from Datomic support:
+I've informed Datomic support about my findings and shared a draft version of this post. The
+response thus far is that the findings here does not constitute an error on Datomic's part. Quote
+from Datomic support:
 
-> Datomic's retry is not "broken", but having no default timeout for the Postgres driver is a misconfiguration. It's certainly something we could address on the Datomic side, by providing a default timeout setting at configuration, but we have the expectation that users configure their storages and drivers correctly for their needs. This represents a conflation of timeouts and retries, the retries are fine, but the storage level timeouts are not. As stated, we could absolutely do better right now with Postgres timeouts, but as your blog post demonstrates this is solvable in user-space by configuring the drivers and storage with a default timeout.  
+> Datomic's retry is not "broken", but having no default timeout for the Postgres driver is a
+misconfiguration. It's certainly something we could address on the Datomic side, by providing a
+default timeout setting at configuration, but we have the expectation that users configure their
+storages and drivers correctly for their needs. This represents a conflation of timeouts and
+retries, the retries are fine, but the storage level timeouts are not. As stated, we could
+absolutely do better right now with Postgres timeouts, but as your blog post demonstrates this is
+solvable in user-space by configuring the drivers and storage with a default timeout.  
 …  
-At this time, Datomic does not enforce a timeout for jdbc backends as the config param is not uniform across different backends.  
+At this time, Datomic does not enforce a timeout for jdbc backends as the config param is not
+uniform across different backends.  
 …  
-We would have to define "too long" which we can take a stab at, but might affect users who are relying on longer connections. Ultimately, we want users to address in config if they can for their needs.
+We would have to define "too long" which we can take a stab at, but might affect users who are
+relying on longer connections. Ultimately, we want users to address in config if they can for their
+needs.
 
 ## Cloud epilogue
 
-The move to the cloud, Azure Container Instances (ACI), were a relative success. The network was — and is — a mess. ACI DNS is a mess. In fact it is such a mess that we wrote a service called `DNS-fixer`. It works ¯\\_(ツ)_/¯.
+The move to the cloud, Azure Container Instances (ACI), were a relative success. The network was —
+and is — a mess. ACI DNS is a mess. In fact it is such a mess that we wrote a service called
+`DNS-fixer`. It works ¯\\_(ツ)_/¯.
 
-All services using PostgreSQL added `socketTimeout` properties. We also discovered that the built-in JVM HttpClient does not support a [timeout for reading the body of a response](https://bugs.openjdk.org/browse/JDK-8258397) properly.
+All services using PostgreSQL added `socketTimeout` properties. We also discovered that the built-in
+JVM HttpClient does not support
+a [timeout for reading the body of a response](https://bugs.openjdk.org/browse/JDK-8258397)
+properly.
 
 We have since moved partly to Azure Container Apps. It's much better with respect to network issues.
 
 ***
 
-_Thanks to August Lilleaas, Christian Johansen, Magnar Sveen and Sigve Sjømæling Nordgaard for comments/feedback._
+_Thanks to August Lilleaas, Christian Johansen, Magnar Sveen and Sigve Sjømæling Nordgaard for
+comments/feedback._
 
 ***
 
 ### Further reading
+
 * [When TCP sockets refuse to die](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die/)
 * [HikariCP Rapid Recovery](https://github.com/brettwooldridge/HikariCP/wiki/Rapid-Recovery)
