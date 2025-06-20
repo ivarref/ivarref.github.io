@@ -37,9 +37,10 @@ favicon = "images/favicon.png"
 dateFormat = "2006-01-02"
 hideMadeWithLine = true
 hideRSSLink = false
-[params.author]
-name = "Ivar Refsdal"
-email = "refsdal.ivar@gmail.com"
+author = "Ivar Refsdal"
+#[params.author]
+#name = "Ivar Refsdal"
+#email = "refsdal.ivar@gmail.com"
 
 [[menu.main]]
 name = "Home"
