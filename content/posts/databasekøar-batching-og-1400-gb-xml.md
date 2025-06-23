@@ -44,9 +44,11 @@ Då får ein ein
 [timeout på omlag 924.6 sekund](https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt).
 
 Dersom køyrer docker swarm, kan
-[tilkoblinga fryse etter 15 minutt](https://github.com/moby/moby/issues/37466#issuecomment-405537713).
+[tilkoblinga frysa etter 15 minutt](https://github.com/moby/moby/issues/37466#issuecomment-405537713).
 
-Desse problema kan ein handsama ved å setja socket timeout (jdbc, psycopg) og/eller keep alive.
+Desse problema kan ein handsama ved å setja socket
+timeout ([JDBC](https://jdbc.postgresql.org/documentation/use/#connection-parameters))
+og/eller keep alive ([psycopg](https://www.postgresql.org/docs/17/libpq-connect.html)).
 Eg har snakka om dette [her](https://www.youtube.com/watch?v=jQi_D4cosr0).
 
 La oss anta at det ikkje er noko nettverksfeil:
