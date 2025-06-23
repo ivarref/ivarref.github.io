@@ -228,8 +228,8 @@ Slike verktøy og analysemetodar er godt skildra i boka
 av Brendan Gregg.
 
 Ei endeleg stadfesting fekk eg då eg køyrde det på min gamle linuxbærbar.
-Både disklesing og -skriving var treigare der enn på serveren,
-likevel gjekk det raskare enn på den gamle bærbaren. Og vifta gjekk i taket.
+Både disklesing og -skriving var treigare der enn på serveren.
+Likevel gjekk det raskare på den gamle bærbaren. Vifta gjekk i taket.
 CPU-en på min gamle linuxbærbar var kraftigare enn den litt eldre "superserveren"
 med 2 TB RAM.
 
@@ -237,7 +237,7 @@ MacBook Air (M*) er som kjent viftelaus, så eg hadde rett og slett ikkje tenkt
 mykje på CPU-bruk, særleg ettersom bruken skjedde på ein-to av åtte tilgjengelege kjernar.
 
 Uansett hadde det vore klårt frå byrjinga at ein burde paralellisera arbeidet:
-Det er greit å nytta dei CPU-ane ein faktisk har.
+Det er greitt å nytta dei CPU-ane ein faktisk har.
 
 ## Parallelliseringskviss
 
