@@ -308,7 +308,7 @@ Korleis lagar ein eit slikt køsystem?
 Ein ynskjer fylgjande eigenskapar til køsystemet:
 
 * Transaksjonell og del av same database.
-* Fleire consumers, også for same kø.
+* Fleire consumers, òg for same kø.
 * Feilhandsaming: rollback og eventuelt retry.
 * Minst mogleg styr.
 
