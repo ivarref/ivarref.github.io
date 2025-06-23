@@ -355,14 +355,15 @@ Skal ein då rulle attende alt? Då mistar ein låsen for batchkø-radene. Ein a
 consumer kan då ta radene og få same feil på nytt. Skal ein committe?
 Då får ein ein delvis utført køjobb. Ein ynskjer ingen av delene.
 
-Det er her [SAVEPOINT](https://www.postgresql.org/docs/current/sql-savepoint.html)s kjem
+Det er her [SAVEPOINT](https://www.postgresql.org/docs/17/sql-savepoint.html)s kjem
 inn i biletet. Det er òg kjent under namna `nested transactions` og `subtranction`.
 
 > A savepoint is a special mark _inside a transaction_ that allows all commands that are executed
 > after it was established to be rolled back,
 > restoring the transaction state to what it was at the time of the savepoint.
 
-Sitat frå PostgreSQL-dokumentasjonen og med mi utheving:
+Sitat er frå [PostgreSQL-dokumentasjonen](https://www.postgresql.org/docs/17/sql-savepoint.html)
+og med mi utheving:
 med `SAVEPOINTs` kan ein rulla attende _ein del_ av ein transaksjonen.
 
 ## Concurrent batchkø
