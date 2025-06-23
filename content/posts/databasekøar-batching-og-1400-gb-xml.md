@@ -247,7 +247,6 @@ Kor lang tid tek det å utføra fylgjande transaksjon?
 ```sql
 UPDATE s.shopping_list SET cnt = cnt*2 WHERE item_name = 'Filterkaffi'
 UPDATE s.shopping_list SET cnt = cnt*2 WHERE item_name = 'H-mjølk'
-
 ```
 
 Tenk på det. Ikkje altfor for hardt, ikkje altfor lett, men sånn passe.
@@ -304,7 +303,7 @@ vert:
 
 Korleis lagar ein eit slikt køsystem?
 
-## Concurrent batchkø
+## Concurrent batch-kø
 
 Ein ynskjer fylgjande eigenskapar til køsystemet:
 
@@ -343,7 +342,7 @@ låsekonflikt eller -venting mellom ulike transaksjonar.
 
 ## SAVEPOINTs
 
-La oss seie fylgjande psuedokode køyrer:
+La oss seie fylgjande pseudokode køyrer:
 
 ```
 Hent køjobb: SELECT * FROM batch_queue FOR UPDATE SKIP LOCKED ...
@@ -352,7 +351,7 @@ Køjobb: INSERT INTO tbl_1 => OK
         => Rulle attende alt?
 ```
 
-Skal ein då rulle attende alt? Då mistar ein låsen for batchkø-radene. Ein annan
+Skal ein då rulle attende alt? Då mistar ein låsen for batch-kø-radene. Ein annan
 consumer kan då ta radene og få same feil på nytt. Skal ein committe?
 Då får ein ein delvis utført køjobb. Ein ynskjer ingen av delene.
 
@@ -367,9 +366,9 @@ Sitat er frå [PostgreSQL-dokumentasjonen](https://www.postgresql.org/docs/17/sq
 og med mi utheving:
 med `SAVEPOINTs` kan ein rulla attende _ein del_ av ein transaksjonen.
 
-## Concurrent batchkø
+## Concurrent batch-kø
 
-Psuedokode for ein concurrent batchkø med `SAVEPOINTs` kan sjå slik ut:
+Pseudokode for ein concurrent batch-kø med `SAVEPOINTs` kan sjå slik ut:
 
 ```
 SELECT * FROM batch_queue WHERE status='INIT' FOR UPDATE SKIP LOCKED ...
@@ -385,13 +384,13 @@ COMMIT
 ```
 
 Her nyttar ein `SAVEPOINTs` for å kunne gjera to ting: rulla attende det som har skjett
-inne i køjobbfunksjonen _samstundes_ som ein framleis held på dei låste radene i batchkøtabellen.
+inne i køjobbfunksjonen _samstundes_ som ein framleis held på dei låste radene i batch-køtabellen.
 Dette gjev oss dei eigenskapane me ynsker oss:
 
 * Ein kan ha fleire consumers per kø om ein ynskjer det. Consumers vil ikkje gå i beina på
 kvarandre, òg om ein skulle rulla attende.
 
-* Ein får rulla attende nøyaktig det ein ynskjer, samstundes som ein ikkje slepp batchkølåsen.
+* Ein får rulla attende nøyaktig det ein ynskjer, samstundes som ein ikkje slepp batch-kølåsen.
   Det bør vera grei skuring å i tillegg leggja til retry. Om ein har henta ut ti køitems,
   kan ein f.eks. prøva ein og ein på nytt i separate transaksjonar.
 
