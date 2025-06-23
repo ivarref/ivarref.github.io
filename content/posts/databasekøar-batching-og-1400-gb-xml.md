@@ -264,7 +264,7 @@ før den committer? Då får ein ein deadlock. Dette er meir utfyllande forklart
 
 Poenget er forhaldsvis enkelt:
 det er ikkje nødvendigvis uproblematisk å skriva batchar av data til same tabell frå
-fleire prosessar samstundes. Blant anna deadlocks og lange ventetider kan oppstå.
+fleire prosessar (transaksjonar) samstundes. Blant anna deadlocks og lange ventetider kan oppstå.
 Kan parallelliseringa gjerast enklare, dvs. utan å måtta tenkja på rekkefylgje
 og låsing?
 
