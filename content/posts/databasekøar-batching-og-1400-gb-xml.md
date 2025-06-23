@@ -403,7 +403,7 @@ Koden er framleis mogleg å resonnera om.
 
 Hovudmålet for prosjektet vart nådd: køyretida gjekk frå manadar til éin dag!
 
-Med det er det berre å avslutta med [Olav H](https://www.nrk.no/kultur/_det-er-den-draumen_-er-norges-beste-dikt-1.13140034):
+Med det er det berre å avslutta, fritt etter [Olav H](https://www.nrk.no/kultur/_det-er-den-draumen_-er-norges-beste-dikt-1.13140034):
 
 _Det er den draumen me alle – eller i det minste sume av oss – ber på:\
 at noko vedunderleg skal skje\
