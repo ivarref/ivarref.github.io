@@ -17,7 +17,8 @@ Koden, som skulle gjera ein import av XML-en,
 hadde ei køyretid på fleire månadar.
 
 Sluttresultatet skulle vera ein PostgreSQL
-database med rundt 80 tabellar. Det var med andre ord det ein kunne kalla _interessant_ prosjekt.
+database med rundt 80 tabellar.
+Det var med andre ord det ein kunne kalla eit _interessant_ prosjekt.
 
 ## Kviss
 
@@ -236,7 +237,7 @@ med 2 TB RAM.
 MacBook Air (M*) er som kjent viftelaus, så eg hadde rett og slett ikkje tenkt
 mykje på CPU-bruk, særleg ettersom bruken skjedde på ein-to av åtte tilgjengelege kjernar.
 
-Uansett hadde det vore klårt frå byrjinga at ein burde paralellisera arbeidet:
+Uansett hadde det vore klårt frå byrjinga at ein burde parallellisera arbeidet:
 Det er greitt å nytta dei CPU-ane ein faktisk har.
 
 ## Parallelliseringskviss
@@ -406,7 +407,8 @@ Koden er framleis mogleg å resonnera om.
 
 Hovudmålet for prosjektet vart nådd: køyretida gjekk frå manadar til éin dag!
 
-Med det er det berre å avslutta, fritt etter [Olav H](https://www.nrk.no/kultur/_det-er-den-draumen_-er-norges-beste-dikt-1.13140034):
+Med det er det berre å avslutta, fritt etter
+[Olav H](https://www.nrk.no/kultur/_det-er-den-draumen_-er-norges-beste-dikt-1.13140034):
 
 _Det er den draumen me alle – eller i det minste sume av oss – ber på:\
 at noko vedunderleg skal skje\
