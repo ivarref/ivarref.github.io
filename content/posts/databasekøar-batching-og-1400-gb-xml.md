@@ -128,7 +128,7 @@ cursor.execute(sql, ('H-mjølk', 4)) # Treng mykje mjølk til å laga graut
 ```
 
 Kvar `cursor.execute` gjer ein full nettverksrunde (round trip time), og dette tek unødvendig
-mykje tid. Batchversjonen i Python ser slik ut:
+mykje tid. Batch-versjonen i Python ser slik ut:
 
 ```python
 cursor.executemany(sql, [('Filterkaffi', 1), ('H-mjølk', 4)])
@@ -374,8 +374,8 @@ Pseudokode for ein concurrent batch-kø med `SAVEPOINTs` kan sjå slik ut:
 SELECT * FROM batch_queue WHERE status='INIT' FOR UPDATE SKIP LOCKED ...
 SAVEPOINT pre_queue_consumer_fn
 try:
-  køjobb funksjon: INSERT INTO tbl_1 OK
-  køjobb funksjon: INSERT INTO tbl_2 💥UniqueConstraintViolation💥
+  køjobb-funksjon: INSERT INTO tbl_1 OK
+  køjobb-funksjon: INSERT INTO tbl_2 💥UniqueConstraintViolation💥
   UPDATE batch_queue status=’DONE’ WHERE ...
 except Exception:
   ROLLBACK TO pre_queue_consumer_fn 
@@ -384,14 +384,14 @@ COMMIT
 ```
 
 Her nyttar ein `SAVEPOINTs` for å kunne gjera to ting: rulla attende det som har skjett
-inne i køjobbfunksjonen _samstundes_ som ein framleis held på dei låste radene i batch-køtabellen.
+inne i køjobb-funksjonen _samstundes_ som ein framleis held på dei låste radene i batch-køtabellen.
 Dette gjev oss dei eigenskapane me ynsker oss:
 
 * Ein kan ha fleire consumers per kø om ein ynskjer det. Consumers vil ikkje gå i beina på
 kvarandre, òg om ein skulle rulla attende.
 
 * Ein får rulla attende nøyaktig det ein ynskjer, samstundes som ein ikkje slepp batch-kølåsen.
-  Det bør vera grei skuring å i tillegg leggja til retry. Om ein har henta ut ti køitems,
+  Det bør vera grei skuring å i tillegg leggja til retry. Om ein har henta ut ti kø-items,
   kan ein f.eks. prøva ein og ein på nytt i separate transaksjonar.
 
 * "Minst mogleg styr." Databasen gjer all koordineringa for oss. Konsumentar kan køyra på
@@ -404,7 +404,7 @@ Prosjektet kom etterkvart i mål. Det vart rundt 30 køar og 80 køkonsumentar.
 Det vart ingen interprocess communication eller moglegheiter for race conditions.
 Koden er framleis mogleg å resonnera om.
 
-Hovudmålet for prosjektet vart nådd: køyretida gjekk frå manadar til éin dag!
+Hovudmålet for prosjektet vart nådd: køyretida gjekk frå fleire månadar til éin dag!
 
 Med det er det berre å avslutta, fritt etter
 [Olav H](https://www.nrk.no/kultur/_det-er-den-draumen_-er-norges-beste-dikt-1.13140034):
