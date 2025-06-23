@@ -167,7 +167,7 @@ for Java.
 ## PostgreSQL: COPY protokollen
 
 PostgreSQL har, i tillegg til prepared statements, ein eigen
-[copy protokoll](https://www.postgresql.org/docs/current/sql-copy.html).
+[copy protokoll](https://www.postgresql.org/docs/17/sql-copy.html).
 Den er enno raskare enn en batching.
 `psycopg` støttar denne protokollen, og bruken av det ser slik ut:
 
