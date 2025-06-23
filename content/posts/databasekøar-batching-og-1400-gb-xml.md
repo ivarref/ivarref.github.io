@@ -401,7 +401,7 @@ kvarandre, òg om ein skulle rulla attende.
 ## Resultat
 
 Prosjektet kom etterkvart i mål. Det vart rundt 30 køar og 80 køkonsumentar.
-Det vart ingen inter process communication eller moglegheiter for race conditions.
+Det vart ingen interprocess communication eller moglegheiter for race conditions.
 Koden er framleis mogleg å resonnera om.
 
 Hovudmålet for prosjektet vart nådd: køyretida gjekk frå manadar til éin dag!
