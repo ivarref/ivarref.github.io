@@ -44,7 +44,7 @@ Ein anna nettverksfeilcase er at tilkoblinga vert droppa før TCP ACK er kome.
 Då får ein ein
 [timeout på omlag 924.6 sekund](https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt).
 
-Dersom køyrer docker swarm, kan
+Dersom ein køyrer docker swarm, kan
 [tilkoblinga frysa etter 15 minutt](https://github.com/moby/moby/issues/37466#issuecomment-405537713).
 
 Desse problema kan ein handsama ved å setja socket
@@ -83,7 +83,7 @@ CREATE TABLE s.shopping_list(item_name TEXT PRIMARY KEY,
 ```
 
 I førre avsnitt såg ein at nettverksrundetida, round trip time (RTT), er sentralt
-for kor raskt ei spørring går. Det vanleg å skilja mellom `UPDATEs`
+for kor raskt ei spørring går. Det er vanleg å skilja mellom `UPDATEs`
 og `INSERTs` på backend-sida. Ein kan ofte sjå fylgjande kode:
 
 ```python
