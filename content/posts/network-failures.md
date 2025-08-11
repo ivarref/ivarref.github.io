@@ -3,10 +3,6 @@ title: "Datomic's handling of network failures"
 date: 2024-05-19T11:46:36+02:00
 ---
 
-[//]: # ([//]: # tydelige subjekter)
-
-[//]: # ([//]: # unngå passiv: meir tydelig kven som gjer kva)
-
 ## Introduction
 
 This post will examine how

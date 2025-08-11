@@ -4,4 +4,4 @@ set -euo pipefail
 git submodule update --init --recursive || true
 #git submodule update --remote --merge
 
-hugo server -D --disableFastRender
+hugo server -D --disableFastRender | ./watch.py

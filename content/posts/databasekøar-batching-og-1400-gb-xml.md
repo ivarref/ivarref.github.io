@@ -1,6 +1,6 @@
 ---
-draft: true
 title: Databasekøar, batching og 1400 GB XML
+date: 2025-08-08T07:46:36+02:00
 ---
 
 ## Bakgrunn
@@ -356,7 +356,7 @@ consumer kan då ta radene og få same feil på nytt. Skal ein committe?
 Då får ein ein delvis utført køjobb. Ein ynskjer ingen av delene.
 
 Det er her [SAVEPOINT](https://www.postgresql.org/docs/17/sql-savepoint.html)s kjem
-inn i biletet. Det er òg kjent under namna `nested transactions` og `subtranction`.
+inn i biletet. Det er òg kjent under namna `nested transactions` og `subtransaction`.
 
 > A savepoint is a special mark _inside a transaction_ that allows all commands that are executed
 > after it was established to be rolled back,

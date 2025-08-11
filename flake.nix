@@ -11,7 +11,6 @@
       self,
       nixpkgs,
       flake-utils,
-      poetry2nix,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
