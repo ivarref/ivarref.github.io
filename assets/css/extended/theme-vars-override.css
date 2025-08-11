@@ -15,9 +15,7 @@
     --blue: #268bd2;
     --cyan: #2aa198;
     --green: #859900;
-}
 
-:root {
     --theme: var(--base3);
     --entry: var(--base2);
     --primary: var(--base01);
@@ -29,32 +27,34 @@
     --code-block-bg: var(--base2);
     --border: var(--base1);
 
+    pre code {
+        color: var(--base00);
+    }
+
     .list {
         background: var(--base3);
+    }
+}
+
+.dark {
+    --theme: var(--base03);
+    --entry: var(--base2);
+    --primary: var(--base01);
+    --secondary: var(--base00);
+    --tertiary: var(--base2);
+    --content: var(--base00);
+    --hljs-bg: #ffaa00;
+    --code-bg: var(--base2);
+    --code-block-bg: var(--base2);
+    --border: var(--base1);
+
+    .list {
+        background: var(--base03);
     }
 
     pre code {
         color: var(--base00);
     }
-
-    .datefmt {
-        /*color: #ffaa00;*/
-        /* https://blog.horizon-eda.org/misc/2020/02/19/ui.html */
-        /* https://developer.mozilla.org/en-US/docs/Web/CSS/font-feature-settings */
-        font-feature-settings: "tnum";
-    }
-}
-
-.dark {
-    --theme: #101c7a;
-    --entry: #202062;
-    --primary: #839496;
-    --secondary: rgba(235, 235, 255, 0.66);
-    --tertiary: rgba(1, 1, 5, 0.32);
-    --content: rgba(235, 235, 255, 0.82);
-    --hljs-bg: #2e2e33;
-    --code-bg: #37383e;
-    --border: #446;
 }
 
 .datefmt {
