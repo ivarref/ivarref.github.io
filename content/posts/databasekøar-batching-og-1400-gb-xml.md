@@ -3,6 +3,9 @@ title: Databasekøar, batching og 1400 GB XML
 date: 2025-08-08T07:46:36+02:00
 ---
 
+Dette innlegget vart fyrst publisert
+på [kode24.no](https://www.kode24.no/artikkel/1400-gb-xml-og-10000-linjer-sql-sann-fikk-ivar-opp-farta-i-legacy-systemet/240079).
+
 ## Bakgrunn
 
 Eg hadde sagt ja til å forbetra hastigheita på eit legacysystem. Kor vanskeleg kunne det vera?

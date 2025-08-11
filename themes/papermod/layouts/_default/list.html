@@ -8,7 +8,7 @@
 <header class="page-header">
   {{- partial "breadcrumbs.html" . }}
   <h1>
-    {{ .Title }}
+    {{ "Posts" }}
     {{- if and (or (eq .Kind `term`) (eq .Kind `section`)) (.Param "ShowRssButtonInSectionTermList") }}
     {{- with .OutputFormats.Get "rss" }}
     <a href="{{ .RelPermalink }}" title="RSS" aria-label="RSS">
@@ -37,6 +37,8 @@
   {{- else }}{{ .Content }}{{ end }}
 </div>
 {{- end }}
+
+{{- if not .IsHome }}
 
 {{- $pages := union .RegularPages .Sections }}
 
@@ -119,3 +121,4 @@
 {{- end }}{{/* end profileMode */}}
 
 {{- end }}{{- /* end main */ -}}
+{{- end }}
