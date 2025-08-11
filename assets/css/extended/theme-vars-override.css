@@ -31,26 +31,26 @@
         color: var(--base00);
     }
 
-    .list {
+    .list:not(.dark) {
         background: var(--base3);
+    }
+
+    .dark.list {
+        background: var(--base03);
     }
 }
 
 .dark {
     --theme: var(--base03);
-    --entry: var(--base2);
-    --primary: var(--base01);
+    --entry: var(--base02);
+    --primary: var(--base1);
     --secondary: var(--base00);
-    --tertiary: var(--base2);
+    --tertiary: var(--base02);
     --content: var(--base00);
     --hljs-bg: #ffaa00;
-    --code-bg: var(--base2);
-    --code-block-bg: var(--base2);
-    --border: var(--base1);
-
-    .list {
-        background: var(--base03);
-    }
+    --code-bg: var(--base02);
+    --code-block-bg: var(--base02);
+    --border: var(--base01);
 
     pre code {
         color: var(--base00);
