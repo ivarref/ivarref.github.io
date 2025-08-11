@@ -44,16 +44,16 @@
     --theme: var(--base03);
     --entry: var(--base02);
     --primary: var(--base1);
-    --secondary: var(--base00);
+    --secondary: var(--base1);
     --tertiary: var(--base02);
-    --content: var(--base00);
+    --content: var(--base1);
     --hljs-bg: #ffaa00;
     --code-bg: var(--base02);
     --code-block-bg: var(--base02);
     --border: var(--base01);
 
     pre code {
-        color: var(--base00);
+        color: var(--base1);
     }
 }
 
