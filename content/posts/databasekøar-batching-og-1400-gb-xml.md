@@ -1,10 +1,7 @@
 ---
 title: Databasekøar, batching og 1400 GB XML
-date: 2025-08-11T07:46:36+02:00
+date: 2025-08-08T07:46:36+02:00
 ---
-
-Dette innlegget var fyrst publisert
-på [kode24.no](https://www.kode24.no/artikkel/1400-gb-xml-og-10000-linjer-sql-sann-fikk-ivar-opp-farta-i-legacy-systemet/240079).
 
 ## Bakgrunn
 
@@ -39,8 +36,7 @@ Svaret er: det kjem an på.
 
 For det fyrste kan det oppstå nettverksfeil.
 Er ein maks uheldeg
-kan backenden ha motteke ein TCP acknowledgement og deretter at tilkoblinga vert droppa utan at
-backenden
+kan backenden ha motteke ein TCP acknowledgement og deretter at tilkoblinga vert droppa utan at backenden
 får beskjed. Då endar ein opp med
 [å venta i all evigheit](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die/).
 
@@ -71,21 +67,19 @@ lokalt oppsett, primært grunna nettverket.
 
 Om ein ynskjer eit lokalt oppsett _med nettverkstreigheit_, kan ein f.eks. nytta
 [traffic control](https://jvns.ca/blog/2017/04/01/slow-down-your-internet-with-tc/) (linux)
-eller
+eller 
 [packet filter & traffic shaper](https://serverfault.com/questions/725030/traffic-shaping-on-osx-10-10-with-pfctl-and-dnctl)
 (mac).
+
 
 ## UPSERTs: atomisk innleggjelse eller oppdatering av tabellverdiar
 
 La oss anta at ein har fylgjande tabell:
 
 ```sql
-CREATE TABLE s.shopping_list
-(
-    item_name TEXT PRIMARY KEY,
-    cnt       BIGINT NOT NULL
-);
--- cnt = count = antall ein skal kjøpa
+CREATE TABLE s.shopping_list(item_name TEXT PRIMARY KEY,
+                             cnt       BIGINT NOT NULL); 
+                             -- cnt = count = antall ein skal kjøpa
 ```
 
 I førre avsnitt såg ein at nettverksrundetida, round trip time (RTT), er sentralt
@@ -93,22 +87,11 @@ for kor raskt ei spørring går. Det er vanleg å skilja mellom `UPDATEs`
 og `INSERTs` på backend-sida. Ein kan ofte sjå fylgjande kode:
 
 ```python
-existing_cnt = SELECT
-cnt
-from s.shopping_list WHERE
-
-item_name = ...
+existing_cnt = SELECT cnt from s.shopping_list WHERE item_name = ...
 if existing_cnt:
-    UPDATE
-    s.shopping_list
-    SET
-    cnt = ? WHERE
-    item_name = ?
-    else:
-    INSERT
-    INTO
-    s.shopping(item_name, cnt)
-    VALUES(?, ?)
+    UPDATE s.shopping_list SET cnt = ? WHERE item_name = ?
+else:
+    INSERT INTO s.shopping (item_name, cnt) VALUES (?, ?)
 ```
 
 Dette ovanfor krever to nettverksrundar. Det finst ein raskare måte:
@@ -117,10 +100,9 @@ Dette ovanfor krever to nettverksrundar. Det finst ein raskare måte:
 For PostgreSQL ser eksempelet over slik ut:
 
 ```sql
-INSERT INTO s.shopping_list (item_name, cnt)
-VALUES (?, ?) ON CONFLICT (item_name) DO
-UPDATE SET
-    cnt = s.shopping_list.cnt + EXCLUDED.cnt;
+INSERT INTO s.shopping_list (item_name, cnt) VALUES (?, ?)
+ON CONFLICT (item_name) DO UPDATE SET
+cnt = s.shopping_list.cnt + EXCLUDED.cnt;
 
 -- dersom ein ikkje vil gjera UPDATE og unngå Unique Violation Constraint:
 -- ON CONFLICT (item_name) DO NOTHING
@@ -138,11 +120,11 @@ I Python kan ein skriva fylgjande kode:
 ```python
 cursor = conn.cursor()
 sql = 'INSERT INTO s.shopping_list (item_name, cnt) VALUES (%s, %s)'
-# Kan også ha ON CONFLICT (item_name) ... 
+      # Kan også ha ON CONFLICT (item_name) ... 
 
 cursor.execute(sql, ('Filterkaffi', 1))
-cursor.execute(sql, ('H-mjølk', 4))  # Treng mykje mjølk til å laga graut
-# og ikkje minst til å ha i kaffien
+cursor.execute(sql, ('H-mjølk', 4)) # Treng mykje mjølk til å laga graut
+                                    # og ikkje minst til å ha i kaffien
 ```
 
 Kvar `cursor.execute` gjer ein full nettverksrunde (round trip time), og dette tek unødvendig
@@ -160,29 +142,15 @@ kan nytta
 String sql = "INSERT INTO s.shopping_list (item_name, cnt) VALUES (?, ?)";
 PreparedStatement pstmt = conn.prepareStatement(sql);
 
-pstmt.
+pstmt.setString(1, "Filterkaffi");
+pstmt.setInt(2, 1);
+pstmt.addBatch();
 
-setString(1,"Filterkaffi");
-pstmt.
+pstmt.setString(1, "H-mjølk");
+pstmt.setInt(2, 4); // 4 x h-mjølk til grauten
+pstmt.addBatch();
 
-setInt(2,1);
-pstmt.
-
-addBatch();
-
-pstmt.
-
-setString(1,"H-mjølk");
-pstmt.
-
-setInt(2,4); // 4 x h-mjølk til grauten
-pstmt.
-
-addBatch();
-
-pstmt.
-
-executeUpdate();
+pstmt.executeUpdate();
 ```
 
 Med batching unngår ein full nettverksrunde for kvar rad. Ein sender i staden
@@ -207,8 +175,8 @@ Den er enno raskare enn en batching.
 ```python
 copy_sql = 'COPY s.shopping_list (item_name, cnt) FROM STDIN'
 with cursor.copy(copy_sql) as copy:
-    copy.write_row(('Filterkaffi', 1))
-    copy.write_row(('H-mjølk', 4))  # Ein lyt ha mjølk. Elles vert det kaffimage
+  copy.write_row(('Filterkaffi', 1))
+  copy.write_row(('H-mjølk', 4)) # Ein lyt ha mjølk. Elles vert det kaffimage
 ```
 
 Ei ulempe med COPY-protokollen er at den ikkje støttar konflikthandsaming.
@@ -277,12 +245,8 @@ Det er greitt å nytta dei CPU-ane ein faktisk har.
 Kor lang tid tek det å utføra fylgjande transaksjon?
 
 ```sql
-UPDATE s.shopping_list
-SET cnt = cnt * 2
-WHERE item_name = 'Filterkaffi'
-UPDATE s.shopping_list
-SET cnt = cnt * 2
-WHERE item_name = 'H-mjølk'
+UPDATE s.shopping_list SET cnt = cnt*2 WHERE item_name = 'Filterkaffi'
+UPDATE s.shopping_list SET cnt = cnt*2 WHERE item_name = 'H-mjølk'
 ```
 
 Tenk på det. Ikkje altfor for hardt, ikkje altfor lett, men sånn passe.
@@ -310,7 +274,6 @@ Som eg skreiv i byrjinga så var det rundt 80 tabellar i dette systemet.
 Ein XML "item" skulle enda opp i 80 ulike tabellar.
 
 Ein naiv parallelliseringsstrategi ville sjå slik ut:
-
 ```
 Process 1: item-1 => tbl_1, tbl_2 … tbl_80
 Process 2: item-2 => tbl_1, tbl_2 … tbl_80
@@ -360,15 +323,11 @@ I tillegg treng ein òg ein enkel tabell for å halda styr på kø-items.
 Eksempelvis:
 
 ```sql
-CREATE TABLE batch_queue
-(
-    id PRIMARY KEY,
-    queue_name TEXT NOT NULL,
-    status     TEXT NOT NULL,
-    payload    TEXT NOT NULL
-)
+CREATE TABLE batch_queue(id         PRIMARY KEY,
+                         queue_name TEXT NOT NULL,
+                         status     TEXT NOT NULL, 
+                         payload    TEXT NOT NULL)
 ```
-
 ## SELECT … FOR UPDATE SKIP LOCKED
 
 `SELECT … FOR UPDATE SKIP LOCKED` er som orda tilseier:
@@ -429,7 +388,7 @@ inne i køjobb-funksjonen _samstundes_ som ein framleis held på dei låste rade
 Dette gjev oss dei eigenskapane me ynsker oss:
 
 * Ein kan ha fleire consumers per kø om ein ynskjer det. Consumers vil ikkje gå i beina på
-  kvarandre, òg om ein skulle rulla attende.
+kvarandre, òg om ein skulle rulla attende.
 
 * Ein får rulla attende nøyaktig det ein ynskjer, samstundes som ein ikkje slepp batch-kølåsen.
   Det bør vera grei skuring å i tillegg leggja til retry. Om ein har henta ut ti kø-items,
