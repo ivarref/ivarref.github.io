@@ -28,7 +28,7 @@ endLevel = 3
 lineNos = true
 lineNumbersInTable = false
 noClasses = true
-style = "catppuccin-mocha"
+style = "solarized-light"
 
 [params]
 title = "Coding corner"

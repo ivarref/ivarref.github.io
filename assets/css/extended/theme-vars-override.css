@@ -26,10 +26,15 @@
     --content: var(--base00);
     --hljs-bg: #ffaa00;
     --code-bg: var(--base2);
+    --code-block-bg: var(--base2);
     --border: var(--base1);
 
     .list {
         background: var(--base3);
+    }
+
+    pre code {
+        color: var(--base00);
     }
 
     .datefmt {
