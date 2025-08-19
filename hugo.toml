@@ -16,7 +16,7 @@ disableKinds = ["taxonomy"]
 tag = "tags"
 
 [permalinks]
-blog = "/:slugorfilename/"
+blog = "/:slugorcontentbasename/"
 tags = "/posts/:slug"
 
 [markup.goldmark.renderer]
@@ -38,6 +38,7 @@ dateFormat = "2006-01-02"
 hideMadeWithLine = true
 hideRSSLink = false
 author = "Ivar Refsdal"
+ShowFullTextinRSS = true
 #[params.author]
 #name = "Ivar Refsdal"
 #email = "refsdal.ivar@gmail.com"
