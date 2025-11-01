@@ -35,6 +35,14 @@ https://www.zovirl.com/2011/07/22/solarized_cheat_sheet/
         color: var(--base00);
     }
 
+    .highlight pre:not(.dark) {
+        background-color: var(--base3) !important;
+    }
+
+    .dark .highlight pre {
+        background-color: var(--base03) !important;
+    }
+
     .list:not(.dark) {
         background: var(--base3);
     }
@@ -55,11 +63,6 @@ https://www.zovirl.com/2011/07/22/solarized_cheat_sheet/
     --code-bg: var(--base02);
     --code-block-bg: var(--base02);
     --border: var(--base01);
-
-    .highlight pre {
-        color: var(--base1);
-        background-color: var(--base03) !important;
-    }
 
     pre code {
         color: var(--base1);
