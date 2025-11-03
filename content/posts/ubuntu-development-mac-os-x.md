@@ -150,14 +150,14 @@ when a file changes:
 git ls-files | entr -ccr ./remoterun.sh ./my-app arg1 arg2
 ```
 
-Check out Julia Evans' [introduction to entr](https://jvns.ca/blog/2020/06/28/entr/)
-if you are interested in learning more about `entr`.
-
 It is also possible to chain commands:
 
 ```bash
 git ls-files | entr -ccr ./remoterun.sh bash -c 'npm run build && npm start'
 ```
+
+I recommend checking out Julia Evans' [introduction to entr](https://jvns.ca/blog/2020/06/28/entr/)
+if you are interested in learning more about `entr`.
 
 ## Final words
 

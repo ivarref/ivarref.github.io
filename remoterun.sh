@@ -45,6 +45,6 @@ exit "$EXIT_CODE"
 '
   # This script will be executed on the remote.
   # Changes directory to the remote path and executes the command.
-  # shopt -s huponexit: Send SIGHUP to all jobs when the job exits.
+  # shopt -s huponexit: Send SIGHUP to all jobs when the ssh session ends.
   echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
 fi
