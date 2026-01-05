@@ -91,7 +91,7 @@ In a given project I add a file `remoterun.sh`:
 set -euo pipefail
 
 REMOTE_HOST='lima-ubuntu'
-REMOTE_PATH='code/my-app'
+REMOTE_PATH="$(pwd | sed "s|$HOME/||")"
 
 REMOTE_SCRIPT='mkdir -p '"${REMOTE_PATH@Q}"
 echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
@@ -104,10 +104,39 @@ echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
 # Why would you want to do that though?
 # Don't add a tilde (~) in the path. It won't be expanded.
 
+scp -q ./.gitignore "${REMOTE_HOST}:${REMOTE_PATH}"
+
+REMOTE_SCRIPT='cd '"${REMOTE_PATH@Q}/.git"
+REMOTE_HAS_GIT="true"
+echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s 2>/dev/null || REMOTE_HAS_GIT="false"
+
+PROTECT_FILES="protect_files_arr=()"
+if [[ "${REMOTE_HAS_GIT}" == "true" ]]; then
+  REMOTE_SCRIPT='cd '"${REMOTE_PATH@Q}"' && git status --ignored=matching --porcelain | grep "^!!"'
+  PROTECT_FILES="$(echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s | \
+/usr/bin/env python3 -c "import fileinput
+import sys
+print('protect_files_arr=(', end='')
+for line in fileinput.input():
+  line1 = line.strip()
+  if line1 == '':
+    continue
+  assert \"'\" not in line1
+  assert line1.startswith('!! ')
+  v = f'\'--filter=protect {line1[3:]}\''
+  print(v, end=' ')
+  #print(v, file=sys.stderr)
+print(')', end='')
+")"
+fi
+
+eval "${PROTECT_FILES}"
+
+# shellcheck disable=SC2154
 rsync -aq \
 --include='**.gitignore' \
 --filter=':- .gitignore' \
---filter='protect node_modules/' \
+"${protect_files_arr[@]}" \
 --delete \
 . "${REMOTE_HOST}:${REMOTE_PATH@Q}"
 # Sync files based on .gitignore:
@@ -116,7 +145,6 @@ rsync -aq \
 # --include='**.gitignore': Include files not in .gitignore.
 # --filter=':- .gitignore': Exclude files in .gitignore.
 # --delete: Delete files on the remote which are not in the source.
-# --filter='protect node_modules/': Don't delete the remote path node_modules/
 
 if [[ "0" == "$#" ]]; then
   echo "No arguments given, synced files only"
@@ -133,7 +161,7 @@ exit "$EXIT_CODE"
 '
   # This script will be executed on the remote.
   # Changes directory to the remote path and executes the command.
-  # shopt -s huponexit: Send SIGHUP to all jobs when the job exits.
+  # shopt -s huponexit: Send SIGHUP to all jobs when the ssh session ends.
   echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
 fi
 ```
