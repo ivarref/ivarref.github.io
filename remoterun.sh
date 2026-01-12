@@ -2,8 +2,14 @@
 
 set -euo pipefail
 
+if ! [ -e "./.git" ]; then
+  echo "Error: $0 expected to be executed in git repository root."
+  echo "Aborting!"
+  exit 1
+fi
+
 REMOTE_HOST='lima-ubuntu'
-REMOTE_PATH="$(pwd | sed "s|$HOME/||")"
+REMOTE_PATH="${REMOTE_PATH:-$(pwd | sed "s|$HOME/||")}"
 
 REMOTE_SCRIPT='mkdir -p '"${REMOTE_PATH@Q}"
 echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
@@ -16,30 +22,30 @@ echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
 # Why would you want to do that though?
 # Don't add a tilde (~) in the path. It won't be expanded.
 
-scp -q ./.gitignore "${REMOTE_HOST}:${REMOTE_PATH}"
+if ! [ -e "./.gitignore" ]; then
+  scp -q ./.gitignore "${REMOTE_HOST}:${REMOTE_PATH}"
+fi
 
 REMOTE_SCRIPT='cd '"${REMOTE_PATH@Q}/.git"
-REMOTE_HAS_GIT="true"
-echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s 2>/dev/null || REMOTE_HAS_GIT="false"
+REMOTE_HAS_GIT_DIR="true"
+echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s 2>/dev/null || REMOTE_HAS_GIT_DIR="false"
 
 PROTECT_FILES="protect_files_arr=()"
-if [[ "${REMOTE_HAS_GIT}" == "true" ]]; then
-  REMOTE_SCRIPT='cd '"${REMOTE_PATH@Q}"' && git status --ignored=matching --porcelain | grep "^!!"'
+if [[ "${REMOTE_HAS_GIT_DIR}" == "true" ]]; then
+  REMOTE_SCRIPT='cd '"${REMOTE_PATH@Q}"' && git status --ignored=matching --porcelain'
   PROTECT_FILES="$(echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s | \
 /usr/bin/env python3 -c "import fileinput
 import sys
 print('protect_files_arr=(', end='')
 for line in fileinput.input():
   line1 = line.strip()
-  if line1 == '':
-    continue
-  assert \"'\" not in line1
-  assert line1.startswith('!! ')
-  v = f'\'--filter=protect {line1[3:]}\''
-  print(v, end=' ')
-  #print(v, file=sys.stderr)
+  if line1.startswith('!! '):
+    assert \"'\" not in line1
+    v = f'\'--filter=protect {line1[3:]}\''
+    print(v, end=' ')
+    #print(v, file=sys.stderr)
 print(')', end='')
-")"
+")" || { echo "Failure to list remote ignored files!"; exit 1; }
 fi
 
 eval "${PROTECT_FILES}"
