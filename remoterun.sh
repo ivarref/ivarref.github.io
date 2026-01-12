@@ -71,8 +71,25 @@ else
   # shellcheck disable=SC2016
   REMOTE_SCRIPT='set -euo pipefail
 shopt -s huponexit
-cd '"${REMOTE_PATH@Q}"' || \
-{ echo "Could not cd to directory! Exiting."; exit 1; }
+
+cd '"${REMOTE_PATH@Q}"' || { echo "Could not cd to directory! Exiting."; exit 1; }
+
+SELFPID="$$"
+onExit () {
+  EXIT_STATUS=$?
+  pkill -P "$SELFPID"
+  exit $EXIT_STATUS
+}
+
+onSIGHUP () {
+  EXIT_STATUS=$?
+  pkill -P "$SELFPID"
+  exit $EXIT_STATUS
+}
+
+trap onExit EXIT
+trap onSIGHUP SIGHUP
+
 '"${@@Q}"' && EXIT_CODE="$?" || EXIT_CODE="$?"
 #echo "Command exited with code $EXIT_CODE"
 exit "$EXIT_CODE"
@@ -80,5 +97,7 @@ exit "$EXIT_CODE"
   # This script will be executed on the remote.
   # Changes directory to the remote path and executes the command.
   # shopt -s huponexit: Send SIGHUP to all jobs when the ssh session ends.
-  echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
+  SCRIPT_ENC="$(echo "${REMOTE_SCRIPT}" | base64)"
+  CMD="echo \"${SCRIPT_ENC}\" | base64 --decode | /bin/bash -s"
+  ssh -o RemoteCommand=none -t "${REMOTE_HOST}" "$CMD"
 fi
