@@ -22,7 +22,7 @@ echo "${REMOTE_SCRIPT}" | ssh "${REMOTE_HOST}" /bin/bash -s
 # Why would you want to do that though?
 # Don't add a tilde (~) in the path. It won't be expanded.
 
-if ! [ -e "./.gitignore" ]; then
+if [ -e "./.gitignore" ]; then
   scp -q ./.gitignore "${REMOTE_HOST}:${REMOTE_PATH}"
 fi
 
